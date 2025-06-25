@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四环素检测系统 - TCS Web App</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .hover-scale {
+            transition: transform 0.3s ease;
+        }
+        .hover-scale:hover {
+            transform: scale(1.05);
+        }
+        .hole-marker {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #4F46E5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        .hole-marker:hover {
+            background: rgba(79, 70, 229, 0.8);
+            color: white;
+            transform: scale(1.2);
+        }
+        .hole-marker.selected {
+            background: #10B981;
+            color: white;
+            border-color: #059669;
+        }
+        .detection-container {
+            position: relative;
+            display: inline-block;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        .sample-box {
+            border: 2px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 1rem;
+            background: #F9FAFB;
+        }
+        .sample-box.active {
+            border-color: #10B981;
+            background: #ECFDF5;
+        }
+        .rgb-display {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            display: inline-block;
+            margin-left: 8px;
+        }
+        .navbar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .tab-button.active {
+            background: #4F46E5;
+            color: white;
+        }
+        .file-row:hover {
+            background: #F3F4F6;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 导航栏 -->
+    <nav class="navbar fixed top-0 left-0 right-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fas fa-microscope text-2xl text-indigo-600 mr-3"></i>
+                    <h1 class="text-xl font-bold text-gray-900">四环素检测系统</h1>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="homeTab" class="tab-button px-4 py-2 rounded-lg font-medium transition-colors active">
+                        <i class="fas fa-home mr-2"></i>检测分析
+                    </button>
+                    <button id="filesTab" class="tab-button px-4 py-2 rounded-lg font-medium transition-colors">
+                        <i class="fas fa-file-alt mr-2"></i>结果管理
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区域 -->
+    <main class="pt-20 pb-8">
+        <!-- 检测分析页面 -->
+        <div id="homeContent" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <!-- 欢迎卡片 -->
+            <div class="gradient-bg rounded-2xl p-8 mb-8 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-3xl font-bold mb-2">智能四环素检测平台</h2>
+                        <p class="text-xl opacity-90">基于YOLOv5的96孔板自动化检测系统</p>
+                        <div class="flex space-x-6 mt-4">
+                            <div class="flex items-center">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <span>TC检测</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <span>OTC检测</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="fas fa-check-circle mr-2"></i>
+                                <span>CTC检测</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-6xl opacity-20">
+                        <i class="fas fa-dna"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤指示器 -->
+            <div class="flex justify-center mb-8">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center">
+                        <div id="step1" class="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">1</div>
+                        <span class="ml-2 font-medium">上传图片</span>
+                    </div>
+                    <div class="w-12 h-1 bg-gray-300" id="line1"></div>
+                    <div class="flex items-center">
+                        <div id="step2" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold">2</div>
+                        <span class="ml-2 font-medium text-gray-600">选择孔位</span>
+                    </div>
+                    <div class="w-12 h-1 bg-gray-300" id="line2"></div>
+                    <div class="flex items-center">
+                        <div id="step3" class="w-10 h-10 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center font-bold">3</div>
+                        <span class="ml-2 font-medium text-gray-600">分析结果</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- 左侧：上传和设置区域 -->
+                <div class="lg:col-span-1">
+                    <!-- 图片上传卡片 -->
+                    <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-upload mr-2 text-indigo-600"></i>
+                            图片上传
+                        </h3>
+
+                        <div id="dropZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-indigo-500 transition-colors cursor-pointer">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                            <p class="text-gray-600 mb-2">点击或拖拽上传96孔板图片</p>
+                            <p class="text-sm text-gray-500">支持 JPG, PNG, GIF 格式</p>
+                            <input type="file" id="fileInput" class="hidden" accept="image/*">
+                        </div>
+
+                        <div id="uploadProgress" class="hidden mt-4">
+                            <div class="flex items-center justify-center">
+                                <div class="loading-spinner mr-3"></div>
+                                <span class="text-gray-600">正在处理图片...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 样品设置卡片 -->
+                    <div id="sampleSettings" class="bg-white rounded-xl shadow-lg p-6 mb-6 hidden">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-cog mr-2 text-indigo-600"></i>
+                            检测设置
+                        </h3>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">检测样品数量</label>
+                            <select id="sampleCount" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                <option value="1">1个样品</option>
+                                <option value="2">2个样品</option>
+                                <option value="3">3个样品</option>
+                                <option value="4">4个样品</option>
+                                <option value="5">5个样品</option>
+                            </select>
+                        </div>
+
+                        <div class="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            每个样品需要选择4个孔位，每个孔位提供3个RGB值，总共12维特征用于分类。
+                        </div>
+                    </div>
+
+                    <!-- 运行分析按钮 -->
+                    <button id="analyzeBtn" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-105 shadow-lg hidden">
+                        <i class="fas fa-play mr-2"></i>开始分析
+                    </button>
+                </div>
+
+                <!-- 右侧：图片显示和选择区域 -->
+                <div class="lg:col-span-2">
+                    <!-- 检测结果显示 -->
+                    <div id="detectionResult" class="bg-white rounded-xl shadow-lg p-6 hidden">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-crosshairs mr-2 text-green-600"></i>
+                            检测结果
+                        </h3>
+
+                        <div class="detection-container mb-6">
+                            <img id="processedImage" class="max-w-full h-auto rounded-lg shadow-md" alt="检测结果">
+                        </div>
+
+                        <!-- 孔位选择状态 -->
+                        <div id="selectionStatus" class="hidden">
+                            <h4 class="font-semibold mb-3">孔位选择状态</h4>
+                            <div id="samplesGrid" class="space-y-4"></div>
+                        </div>
+                    </div>
+
+                    <!-- 分析结果显示 -->
+                    <div id="analysisResult" class="bg-white rounded-xl shadow-lg p-6 hidden">
+                        <h3 class="text-lg font-semibold mb-4 flex items-center">
+                            <i class="fas fa-chart-bar mr-2 text-blue-600"></i>
+                            分析结果
+                        </h3>
+
+                        <div id="resultsTable" class="overflow-x-auto">
+                            <!-- 结果表格将在这里动态生成 -->
+                        </div>
+
+                        <div class="mt-6 flex justify-end">
+                            <button id="downloadResults" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                                <i class="fas fa-download mr-2"></i>下载结果
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件管理页面 -->
+        <div id="filesContent" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 hidden">
+            <div class="bg-white rounded-xl shadow-lg">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-2xl font-bold text-gray-900 flex items-center">
+                            <i class="fas fa-folder-open mr-3 text-blue-600"></i>
+                            检测结果文件管理
+                        </h2>
+                        <button id="refreshFiles" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                            <i class="fas fa-sync-alt mr-2"></i>刷新
+                        </button>
+                    </div>
+                </div>
+
+                <div class="p-6">
+                    <div id="filesTable" class="overflow-x-auto">
+                        <!-- 文件列表将在这里动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 成功消息提示 -->
+    <div id="successMessage" class="fixed top-20 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform z-50">
+        <i class="fas fa-check-circle mr-2"></i>
+        <span id="successText">操作成功！</span>
+    </div>
+
+    <!-- 错误消息提示 -->
+    <div id="errorMessage" class="fixed top-20 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg transform translate-x-full transition-transform z-50">
+        <i class="fas fa-exclamation-circle mr-2"></i>
+        <span id="errorText">出现错误！</span>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentHoleData = [];
+        let selectedHoles = [];
+        let sampleCount = 1;
+        let currentResults = null;
+
+        // DOM元素
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const sampleSettings = document.getElementById('sampleSettings');
+        const detectionResult = document.getElementById('detectionResult');
+        const processedImage = document.getElementById('processedImage');
+        const selectionStatus = document.getElementById('selectionStatus');
+        const samplesGrid = document.getElementById('samplesGrid');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const analysisResult = document.getElementById('analysisResult');
+        const resultsTable = document.getElementById('resultsTable');
+
+        // 标签页切换
+        const homeTab = document.getElementById('homeTab');
+        const filesTab = document.getElementById('filesTab');
+        const homeContent = document.getElementById('homeContent');
+        const filesContent = document.getElementById('filesContent');
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            loadFiles();
+        });
+
+        function setupEventListeners() {
+            // 文件上传
+            dropZone.addEventListener('click', () => fileInput.click());
+            dropZone.addEventListener('dragover', handleDragOver);
+            dropZone.addEventListener('drop', handleDrop);
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // 样品数量选择
+            document.getElementById('sampleCount').addEventListener('change', function() {
+                sampleCount = parseInt(this.value);
+                updateSampleGrid();
+            });
+
+            // 分析按钮
+            analyzeBtn.addEventListener('click', performAnalysis);
+
+            // 标签页切换
+            homeTab.addEventListener('click', () => switchTab('home'));
+            filesTab.addEventListener('click', () => switchTab('files'));
+
+            // 文件管理
+            document.getElementById('refreshFiles').addEventListener('click', loadFiles);
+        }
+
+        function switchTab(tab) {
+            if (tab === 'home') {
+                homeTab.classList.add('active');
+                filesTab.classList.remove('active');
+                homeContent.classList.remove('hidden');
+                filesContent.classList.add('hidden');
+            } else {
+                filesTab.classList.add('active');
+                homeTab.classList.remove('active');
+                filesContent.classList.remove('hidden');
+                homeContent.classList.add('hidden');
+            }
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            dropZone.classList.add('border-indigo-500');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-indigo-500');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                uploadFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                uploadFile(file);
+            }
+        }
+
+        function uploadFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('请选择图片文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            uploadProgress.classList.remove('hidden');
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                uploadProgress.classList.add('hidden');
+
+                if (data.success) {
+                    displayDetectionResults(data);
+                    updateStepIndicator(2);
+                } else {
+                    showError(data.error || '上传失败');
+                }
+            })
+            .catch(error => {
+                uploadProgress.classList.add('hidden');
+                showError('网络错误：' + error.message);
+            });
+        }
+
+        function displayDetectionResults(data) {
+            currentHoleData = data.hole_data;
+            selectedHoles = [];
+
+            // 显示处理后的图片
+            processedImage.src = data.processed_image;
+            processedImage.onload = function() {
+                addHoleMarkers();
+            };
+
+            // 显示相关区域
+            sampleSettings.classList.remove('hidden');
+            detectionResult.classList.remove('hidden');
+
+            // 初始化样品网格
+            updateSampleGrid();
+
+            showSuccess(`成功检测到 ${currentHoleData.length} 个孔位`);
+        }
+
+        function addHoleMarkers() {
+            // 清除现有标记
+            document.querySelectorAll('.hole-marker').forEach(marker => marker.remove());
+
+            const container = processedImage.parentElement;
+            const imgRect = processedImage.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            currentHoleData.forEach((hole, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'hole-marker';
+                marker.textContent = hole.id;
+                marker.dataset.holeIndex = index;
+
+                // 计算相对位置
+                const scaleX = processedImage.clientWidth / processedImage.naturalWidth;
+                const scaleY = processedImage.clientHeight / processedImage.naturalHeight;
+
+                const x = (hole.center_x * scaleX) - 15; // 15是标记的一半宽度
+                const y = (hole.center_y * scaleY) - 15; // 15是标记的一半高度
+
+                marker.style.left = x + 'px';
+                marker.style.top = y + 'px';
+
+                marker.addEventListener('click', () => selectHole(index));
+
+                container.appendChild(marker);
+            });
+        }
+
+        function selectHole(holeIndex) {
+            const hole = currentHoleData[holeIndex];
+            const marker = document.querySelector(`[data-hole-index="${holeIndex}"]`);
+
+            // 检查是否已选择
+            const existingIndex = selectedHoles.findIndex(h => h.id === hole.id);
+
+            if (existingIndex >= 0) {
+                // 取消选择
+                selectedHoles.splice(existingIndex, 1);
+                marker.classList.remove('selected');
+            } else {
+                // 检查是否超过限制
+                if (selectedHoles.length >= sampleCount * 4) {
+                    showError(`最多只能选择 ${sampleCount * 4} 个孔位`);
+                    return;
+                }
+
+                // 添加选择
+                selectedHoles.push(hole);
+                marker.classList.add('selected');
+            }
+
+            updateSampleGrid();
+            checkAnalyzeButton();
+        }
+
+        function updateSampleGrid() {
+            samplesGrid.innerHTML = '';
+
+            for (let i = 0; i < sampleCount; i++) {
+                const sampleDiv = document.createElement('div');
+                sampleDiv.className = 'sample-box';
+
+                const sampleHoles = selectedHoles.slice(i * 4, (i + 1) * 4);
+
+                sampleDiv.innerHTML = `
+                    <h5 class="font-medium mb-2">样品 ${i + 1}</h5>
+                    <div class="text-sm text-gray-600">
+                        已选择: ${sampleHoles.length}/4 个孔位
+                    </div>
+                    <div class="mt-2">
+                        ${sampleHoles.map(hole => `
+                            <span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mr-1 mb-1">
+                                ${hole.id}
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+
+                if (sampleHoles.length === 4) {
+                    sampleDiv.classList.add('active');
+                }
+
+                samplesGrid.appendChild(sampleDiv);
+            }
+
+            if (selectedHoles.length > 0) {
+                selectionStatus.classList.remove('hidden');
+            } else {
+                selectionStatus.classList.add('hidden');
+            }
+        }
+
+        function checkAnalyzeButton() {
+            if (selectedHoles.length === sampleCount * 4) {
+                analyzeBtn.classList.remove('hidden');
+                updateStepIndicator(3);
+            } else {
+                analyzeBtn.classList.add('hidden');
+            }
+        }
+
+        function updateStepIndicator(currentStep) {
+            // 重置所有步骤
+            for (let i = 1; i <= 3; i++) {
+                const step = document.getElementById(`step${i}`);
+                const line = document.getElementById(`line${i}`);
+
+                if (i <= currentStep) {
+                    step.classList.remove('bg-gray-300', 'text-gray-600');
+                    step.classList.add('bg-indigo-600', 'text-white');
+
+                    if (line && i < currentStep) {
+                        line.classList.remove('bg-gray-300');
+                        line.classList.add('bg-indigo-600');
+                    }
+                } else {
+                    step.classList.remove('bg-indigo-600', 'text-white');
+                    step.classList.add('bg-gray-300', 'text-gray-600');
+
+                    if (line) {
+                        line.classList.remove('bg-indigo-600');
+                        line.classList.add('bg-gray-300');
+                    }
+                }
+            }
+        }
+
+        function performAnalysis() {
+            if (selectedHoles.length !== sampleCount * 4) {
+                showError('请选择正确数量的孔位');
+                return;
+            }
+
+            // 准备分析数据
+            const analysisData = {
+                samples: [],
+                hole_data: selectedHoles
+            };
+
+            // 按样品分组孔位数据
+            for (let i = 0; i < sampleCount; i++) {
+                const sampleHoles = selectedHoles.slice(i * 4, (i + 1) * 4);
+                analysisData.samples.push({
+                    sample_id: i + 1,
+                    holes: sampleHoles
+                });
+            }
+
+            // 显示加载状态
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>分析中...';
+
+            // 发送分析请求
+            fetch('/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(analysisData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = '<i class="fas fa-play mr-2"></i>开始分析';
+
+                if (data.success) {
+                    displayAnalysisResults(data.results);
+                    showSuccess('分析完成！');
+                } else {
+                    showError(data.error || '分析失败');
+                }
+            })
+            .catch(error => {
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = '<i class="fas fa-play mr-2"></i>开始分析';
+                showError('网络错误：' + error.message);
+            });
+        }
+
+        function displayAnalysisResults(results) {
+            currentResults = results;
+
+            // 生成结果表格
+            let tableHTML = `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">样品编号</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">检测结果</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">置信度</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">使用孔位</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+
+            results.forEach(result => {
+                const resultClass = result.prediction === 'positive' ? 'text-red-600' : 'text-green-600';
+                const resultText = result.prediction === 'positive' ? '阳性' : '阴性';
+
+                tableHTML += `
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            样品 ${result.sample_id}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${resultClass}">
+                            ${resultText}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${(result.confidence * 100).toFixed(2)}%
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${result.holes.join(', ')}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            resultsTable.innerHTML = tableHTML;
+            analysisResult.classList.remove('hidden');
+
+            // 添加下载按钮事件
+            document.getElementById('downloadResults').addEventListener('click', downloadResults);
+        }
+
+        function downloadResults() {
+            if (!currentResults) {
+                showError('没有可下载的结果');
+                return;
+            }
+
+            // 创建CSV内容
+            let csvContent = '样品编号,检测结果,置信度,使用孔位\n';
+
+            currentResults.forEach(result => {
+                const resultText = result.prediction === 'positive' ? '阳性' : '阴性';
+                csvContent += `样品${result.sample_id},${resultText},${(result.confidence * 100).toFixed(2)}%,"${result.holes.join(', ')}"\n`;
+            });
+
+            // 创建下载链接
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', `tetracycline_detection_results_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
+            showSuccess('结果已下载');
+        }
+
+        function loadFiles() {
+            fetch('/files')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    displayFiles(data.files);
+                } else {
+                    showError('加载文件列表失败');
+                }
+            })
+            .catch(error => {
+                showError('网络错误：' + error.message);
+            });
+        }
+
+        function displayFiles(files) {
+            const filesTable = document.getElementById('filesTable');
+
+            if (files.length === 0) {
+                filesTable.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-folder-open text-4xl mb-4"></i>
+                        <p>暂无检测结果文件</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let tableHTML = `
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件名</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">文件大小</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+            `;
+
+            files.forEach(file => {
+                tableHTML += `
+                    <tr class="file-row">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <i class="fas fa-file-csv mr-2 text-green-600"></i>
+                            ${file.name}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${new Date(file.created_at).toLocaleString('zh-CN')}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${formatFileSize(file.size)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button onclick="downloadFile('${file.name}')" class="text-blue-600 hover:text-blue-900 mr-4">
+                                <i class="fas fa-download mr-1"></i>下载
+                            </button>
+                            <button onclick="deleteFile('${file.name}')" class="text-red-600 hover:text-red-900">
+                                <i class="fas fa-trash mr-1"></i>删除
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                    </tbody>
+                </table>
+            `;
+
+            filesTable.innerHTML = tableHTML;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function downloadFile(filename) {
+            window.open(`/download/${filename}`, '_blank');
+        }
+
+        function deleteFile(filename) {
+            if (confirm(`确定要删除文件 "${filename}" 吗？`)) {
+                fetch(`/delete/${filename}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showSuccess('文件删除成功');
+                        loadFiles(); // 重新加载文件列表
+                    } else {
+                        showError(data.error || '删除失败');
+                    }
+                })
+                .catch(error => {
+                    showError('网络错误：' + error.message);
+                });
+            }
+        }
+
+        function showSuccess(message) {
+            const successMessage = document.getElementById('successMessage');
+            const successText = document.getElementById('successText');
+
+            successText.textContent = message;
+            successMessage.classList.remove('translate-x-full');
+
+            setTimeout(() => {
+                successMessage.classList.add('translate-x-full');
+            }, 3000);
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+
+            errorText.textContent = message;
+            errorMessage.classList.remove('translate-x-full');
+
+            setTimeout(() => {
+                errorMessage.classList.add('translate-x-full');
+            }, 3000);
+        }
+
+        // 窗口大小改变时重新计算孔位标记位置
+        window.addEventListener('resize', () => {
+            if (currentHoleData.length > 0) {
+                setTimeout(addHoleMarkers, 100);
+            }
+        });
+    </script>
+</body>
+</html>
